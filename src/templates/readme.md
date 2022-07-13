@@ -29,7 +29,7 @@ class MyDataset(datasets.GeneratorBasedBuilder):
 
 ## Define templates
 
-1. Create a `templates.yaml` modeled after `src.templates.adherence.templates.yaml`. The important parts are `answer_choices` (` ||| ` separated strings matching the order of integer labels in your dataset). For examples, if your choices are `no ||| yes`, then `0` means "no" and `1` means "yes".
+1. Create a `templates.yaml` modeled after `src/templates/adherence/templates.yaml`. The important parts are `answer_choices` (` ||| ` separated strings matching the order of integer labels in your dataset). For examples, if your choices are `no ||| yes`, then `0` means "no" and `1` means "yes".
 2. Each template should have a UUID.
 3. `jinja` should be a string with `{{ field_name }}` placeholders to be filled in from the dataset fields.
 4. The target completion is defined after a `|||` in the jinja template, with `{{ answer_choices[label] }}`
