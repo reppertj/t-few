@@ -83,25 +83,15 @@ class AdherenceDataset(datasets.GeneratorBasedBuilder):
         for file in source_files:
             all_examples.extend(list(_generate_from_file(os.path.join(self.data_dir, file), split)))
         
-        positive_examples = [example for example in all_examples if example["label"] == 1]
-        negative_examples = [example for example in all_examples if example["label"] == 0]
-
         if datasets.Split.TRAIN == split:
-            # get 80% of both positive and negative examples
-            positive_train = positive_examples[: int(len(positive_examples) * 0.8)]
-            negative_train = negative_examples[: int(len(negative_examples) * 0.8)]
-            # shuffle for added security in case the training order isn't random
-            train = positive_train + negative_train
+            train = [example for example in all_examples if example["document_id"] not in TEST_PAPERS]
             print(f"Training on {len(train)} examples")
-            yield from ((idx, example[1]) for idx, example in enumerate(train))
+            yield from ((idx, example) for idx, example in enumerate(train))
 
         else:
-            # train on the remaining 20% of positive and negative examples
-            positive_val = positive_examples[int(len(positive_examples) * 0.8) :]
-            negative_val = negative_examples[int(len(negative_examples) * 0.8) :]
-            val = positive_val + negative_val
+            val = [example for example in all_examples if example["document_id"] in TEST_PAPERS]
             print(f"Validation on {len(val)} examples")
-            yield from ((idx, example[1]) for idx, example in enumerate(val))
+            yield from ((idx, example) for idx, example in enumerate(val))
 
 
 def _generate_from_file(filename: str, split):
@@ -125,7 +115,7 @@ def _generate_from_file(filename: str, split):
             "context": row["data"]["context"],
             "intervention": row["data"]["intervention"],
             "section": row["data"]["section"],
-            "document_id": row["data"]["document_id"],
+            "document_id": row["data"].get("document_id") or row["data"]["paper"],
             "prediction": row["data"].get("base_prediction") or row["data"]["prediction"],
             "label": label,
         })

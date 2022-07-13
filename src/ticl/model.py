@@ -1,7 +1,6 @@
 import torch.nn.functional as F
 import torch
 
-
 class InferenceModel:
     def __init__(self, model, tokenizer, length_norm, compute_precision, compute_device, compute_batch_size):
         self.model = model

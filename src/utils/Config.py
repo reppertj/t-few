@@ -14,7 +14,7 @@ class Config(object):
 
         # Model Configs
         self.model = "EncDec"
-        self.max_seq_len = 256
+        self.max_seq_len = 1024
         self.origin_model = "bigscience/T0_3B"
         self.load_weight = "pretrained_checkpoints/t03b_ia3_finish.pt"
 
@@ -25,7 +25,7 @@ class Config(object):
         self.few_shot_random_seed = 100
         self.train_template_idx = -1
         self.eval_template_idx = -1
-        self.batch_size = 1
+        self.batch_size = 2
         self.eval_batch_size = 32
         self.num_workers = 8
         self.change_hswag_templates = False
@@ -49,14 +49,14 @@ class Config(object):
 
         # Trainer configs
         self.num_steps = 300
-        self.eval_step_interval = 128
+        self.eval_step_interval = 100
         self.eval_before_training = False
         self.save_model = True
         self.save_step_interval = 2999
         self.mc_loss = 0
         self.unlikely_loss = 0
         self.length_norm = 0
-        self.grad_accum_factor = 1
+        self.grad_accum_factor = 4
         self.split_option_at_inference = False  # Whether to split the answer choices during eval to lower memory usage for datasets with lots of answer choices
 
         # Optimization configs

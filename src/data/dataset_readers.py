@@ -194,10 +194,24 @@ class BaseDatasetReader(object):
         np.random.set_state(saved_random_state)
         return selected_data
 
-    def compute_metric(self, accumulated):
+    def compute_metric(self, accumulated: List[int]):
+        preds = np.array(accumulated["prediction"])
+        labels = np.array(accumulated["label"])
+
+        TP = np.sum(np.logical_and(preds == 1, labels == 1))
+        TN = np.sum(np.logical_and(preds == 0, labels == 0))
+        FP = np.sum(np.logical_and(preds == 1, labels == 0))
+        FN = np.sum(np.logical_and(preds == 0, labels == 1))
+
+        precision = TP / (TP + FP) if TP + FP != 0 else 0
+        recall = TP / (TP + FN) if TP + FN != 0 else 0
+        F1 = 2 * precision * recall / (precision + recall) if precision + recall != 0 else 0
+        MCC = (TP * TN - FP * FN) / np.sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)) if (
+            TP + FP) * (TP + FN) * (TN + FP) * (TN + FN) != 0 else 0
+
         matching = [a == b for a, b in zip(accumulated["prediction"], accumulated["label"])]
         accuracy = sum(matching) / len(matching)
-        return {"accuracy": accuracy}
+        return {"accuracy": accuracy, "precision": precision, "recall": recall, "F1": F1, "MCC": MCC}
 
 
 class StoryClozeReader(BaseDatasetReader):

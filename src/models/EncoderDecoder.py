@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 import torch.distributed as dist
 from pytorch_lightning import LightningModule
+from transformers import T5ForConditionalGeneration
 from src.utils.Config import Config
 from src.utils.get_optimizer import get_optimizer
 from src.utils.get_scheduler import get_scheduler
@@ -25,7 +26,7 @@ class EncoderDecoder(LightningModule):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
-        self.model = transformer
+        self.model: T5ForConditionalGeneration = transformer
         self.dataset_reader = dataset_reader
 
         self.use_deepspeed = self.config.compute_strategy.startswith("deepspeed")

@@ -6,6 +6,8 @@ from datetime import datetime
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, T5ForConditionalGeneration, T5TokenizerFast
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
+from glob import glob
+from tqdm import tqdm
 
 from src.data import FinetuneDataModule, get_dataset_reader, PretrainDataModule
 from src.data.data_module import FinetuneDatasetWithTemplate, create_collate_fn
@@ -73,10 +75,12 @@ def score_all_batches(model, dataset: FinetuneDatasetWithTemplate, collate_fn, b
     fp_items = [dataset.dataset[i] for i in FP_idxs]
     fn_items = [dataset.dataset[i] for i in FN_idxs]
     print(f"TP: {TP}, FP: {FP}, TN: {TN}, FN: {FN}")
+    print(f"Precision: {TP / (TP + FP):.2f} Recall: {TP / (TP + FN):.2f}")
+    print(f"MCC: {(TP * TN - FP * FN) / np.sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)):.2f}")
     return tp_items, fp_items, fn_items, predictions, labels
     
 
-def load_for_inference(config: Union[Config, str]):
+def load_for_inference(config: Union[Config, str], load_finish: bool = True):
 
     if isinstance(config, str):
         config = Config(config)
@@ -84,7 +88,8 @@ def load_for_inference(config: Union[Config, str]):
     tokenizer, model = get_transformer(config)
     dataset_reader = get_dataset_reader(config)
     model = EncoderDecoder(config, tokenizer, model, dataset_reader)
-    model.config.load_weight = os.path.join(config.exp_dir, "finish.pt")
+    if load_finish:
+        model.config.load_weight = os.path.join(config.exp_dir, "finish.pt")
     model.load_model()
     if torch.cuda.is_available():
         model.cuda()
@@ -104,6 +109,23 @@ def predict_range(model: EncoderDecoder, val_dataset, collate_fn, start, stop):
         return model.predict(batch)
 
 
+
+def sample_from_checkpoints(checkpoint_dir: str):   
+    base_config = Config(f"{checkpoint_dir}/config.json")
+    m, vd, cf = load_for_inference(base_config, load_finish=False)
+    checkpoints = glob(os.path.join(checkpoint_dir, "*.pt"))
+    checkpoints.sort(key=lambda x: int(x.split("step")[-1].split(".")[0]), reverse=True)
+    for checkpoint in checkpoints:
+        m.cpu()
+        m.config.load_weight = checkpoint
+        m.load_model()
+        if torch.cuda.is_available():
+            m.cuda()
+        m.eval()
+        print(f"{checkpoint}")
+        score_all_batches(m, vd, cf)
+
+
 def main(config: Config):
     """
     Trains the model
@@ -119,7 +141,6 @@ def main(config: Config):
     else:
         datamodule = FinetuneDataModule(config, tokenizer, dataset_reader)
     model = EncoderDecoder(config, tokenizer, model, dataset_reader)
-    breakpoint()
     logger = TensorBoardLogger(config.exp_dir, name="log")
 
     if "deepspeed" in config.compute_strategy or config.use_deepspeed:
