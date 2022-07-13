@@ -69,6 +69,7 @@ class Config(object):
         self.weight_decay = 0
         self.scale_parameter = True
         self.grad_clip_norm = 1
+        self.label_smoothing = 0.1
 
         # PEFT method configs
         self.model_modifier = ""
