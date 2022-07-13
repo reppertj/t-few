@@ -9,6 +9,8 @@ from torch.utils.data import Dataset, Sampler, DistributedSampler
 from typing import Union, Iterable, Sized, Optional, List, Any, Iterator
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 
+from src.utils.Config import Config
+
 
 class _DatasetSamplerWrapper(Dataset):
     """Dataset to create indexes from `Sampler` or `Iterable`"""
@@ -64,7 +66,7 @@ class DistributedSamplerWrapper(DistributedSampler):
 
 
 class FinetuneDataModule(LightningDataModule):
-    def __init__(self, config, tokenizer, dataset_reader):
+    def __init__(self, config: Config, tokenizer, dataset_reader):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
@@ -99,7 +101,10 @@ class FinetuneDataModule(LightningDataModule):
         weight = 1.0 / class_sample_count
         samples_weight = np.array([weight[t] for t in targets])
         samples_weight = torch.from_numpy(samples_weight).float()
-        return DistributedSamplerWrapper(WeightedRandomSampler(samples_weight, len(samples_weight)))
+        sampler = WeightedRandomSampler(samples_weight, len(samples_weight))
+        if self.config.compute_strategy in ("ddp",) or self.config.use_deepspeed or "deepspeed" in self.config.compute_strategy:
+            return DistributedSamplerWrapper(sampler)
+        return sampler
 
     def train_dataloader(self):
         kwargs = dict(sampler=self.get_balanced_sampler(self.train_dataset) if self.config.balanced_sampling else dict())
