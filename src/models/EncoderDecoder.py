@@ -260,6 +260,8 @@ class EncoderDecoder(LightningModule):
                 if key.startswith("log."):
                     metrics[key.replace("log.", "")] = mean(value)
 
+            metrics["global_step"] = self.global_step
+
             result_str = json.dumps(metrics) + "\n"
             with open(self.config.dev_score_file, "a+") as f:
                 f.write(result_str)
