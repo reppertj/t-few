@@ -93,7 +93,6 @@ class EncoderDecoder(LightningModule):
                     model_output.logits.flatten(0, 1),
                     lm_target.flatten(0, 1),
                     reduction="none",
-                    label_smoothing=self.config.label_smoothing,
                 )
                 .view(bs, num_choices, -1)
                 .sum(dim=-1)
@@ -112,7 +111,7 @@ class EncoderDecoder(LightningModule):
 
             tensorboard_logs = {"lm_loss": lm_loss.item()}
             if self.config.mc_loss > 0:
-                mc_loss = F.cross_entropy(-choices_scores, labels)
+                mc_loss = F.cross_entropy(-choices_scores, labels, label_smoothing=self.config.label_smoothing)
                 tensorboard_logs["mc_loss"] = mc_loss.item()
             else:
                 mc_loss = 0.0
