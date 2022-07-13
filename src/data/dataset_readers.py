@@ -13,8 +13,8 @@ import pandas as pd
 from src.utils.Config import Config
 
 
-def get_dataset_reader(config):
-    dataset_class = {
+def get_dataset_reader(config: Config):
+    dataset_class: BaseDatasetReader = {
         "T0Mixture": T0MixtureReader,
         "rte": RTEReader,
         "h-swag": HSwagReader,
@@ -28,7 +28,7 @@ def get_dataset_reader(config):
         "anli-r3": ANLIR3Reader,
         "wsc": WSCFixedReader,
         "ade_corpus_v2": RaftReader,
-        "adherence": AdherenceReader,
+        "custom": make_custom_dataset_reader(config.custom_dataset_dir),
         "banking_77": RaftReader,
         "terms_of_service": RaftReader,
         "tai_safety_research": RaftReader,
@@ -237,20 +237,22 @@ class StoryClozeReader(BaseDatasetReader):
         return orig_data
 
 
-class AdherenceReader(BaseDatasetReader):
-    def __init__(self, config: Config):
-        super().__init__(config, dataset_stash=("src/templates/adherence",))
+def make_custom_dataset_reader(custom_dataset_dir: str) -> BaseDatasetReader:
+    class CustomReader(BaseDatasetReader):
+        def __init__(self, config: Config):
+            super().__init__(config, dataset_stash=(custom_dataset_dir,))
 
-    def read_orig_dataset(self, split):
-        orig_data = load_dataset(*self.dataset_stash, split=split)
+        def read_orig_dataset(self, split):
+            orig_data = load_dataset(*self.dataset_stash, split=split)
 
-        orig_data = [example for example in orig_data]
+            orig_data = [example for example in orig_data]
 
-        for idx, example in enumerate(orig_data):
-            example["idx"] = idx
-            metadata = {"split": split}
-            example["metadata"] = metadata
-        return [e for e in orig_data]
+            for idx, example in enumerate(orig_data):
+                example["idx"] = idx
+                metadata = {"split": split}
+                example["metadata"] = metadata
+            return [e for e in orig_data]
+    return CustomReader
 
 
 class ANLIR1Reader(BaseDatasetReader):

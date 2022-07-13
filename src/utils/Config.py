@@ -19,7 +19,8 @@ class Config(object):
         self.load_weight = "pretrained_checkpoints/t03b_ia3_finish.pt"
 
         # Dataset Configs
-        self.dataset = "sst2"
+        self.dataset = "custom"
+        self.custom_dataset_dir = "src/templates/adherence"
         self.few_shot = True
         self.num_shot = 16
         self.few_shot_random_seed = 100
