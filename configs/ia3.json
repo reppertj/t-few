@@ -14,7 +14,8 @@
     "unlikely_loss": 1,
     "length_norm": 1,
     "mc_loss": 1,
-    "grad_accum_factor": 8,
+    "batch_size": 4,
+    "grad_accum_factor": 2,
     "save_model": true,
     "compute_strategy": "deepspeed_stage_3"
 }

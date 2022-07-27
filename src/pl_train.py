@@ -161,7 +161,7 @@ def main(config: Config):
         log_every_n_steps=4,
         max_steps=config.num_steps,
         min_steps=config.num_steps,
-        num_sanity_val_steps=-1 if config.eval_before_training else 0,
+        num_sanity_val_steps=config.eval_before_training,
         val_check_interval=config.eval_step_interval,
         accumulate_grad_batches=config.grad_accum_factor,
         gradient_clip_val=config.grad_clip_norm,

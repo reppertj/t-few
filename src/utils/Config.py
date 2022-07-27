@@ -43,15 +43,15 @@ class Config(object):
         # Deepspeed config
         self.use_deepspeed = True
         self.ds_stage = 3
-        self.ds_offload_params = True
-        self.ds_offload_optimizer = True
+        self.ds_offload_params = False
+        self.ds_offload_optimizer = False
         self.ds_cpu_checkpointing = False
         self.ds_nvme = False
 
         # Trainer configs
         self.num_steps = 300
         self.eval_step_interval = 100
-        self.eval_before_training = False
+        self.eval_before_training = 2
         self.save_model = True
         self.save_step_interval = 2999
         self.mc_loss = 0

@@ -78,7 +78,7 @@ class AdherenceDataset(datasets.GeneratorBasedBuilder):
         ]
 
     def _generate_examples(self, split):
-        source_files = ("train.json", "test.json")
+        source_files = ("train.json", "test.json", "hard.json")
         all_examples = []
         for file in source_files:
             all_examples.extend(list(_generate_from_file(os.path.join(self.data_dir, file), split)))
@@ -101,6 +101,9 @@ def _generate_from_file(filename: str, split):
     rows: List[Tuple[int, dict]] = []
 
     for row in data:
+        annotations_count = row["total_annotations"]
+        if not annotations_count:
+            continue
         label = (
             1
             if row["annotations"]

@@ -127,6 +127,7 @@ class FinetuneDataModule(LightningDataModule):
             num_workers=min([self.config.eval_batch_size, self.config.num_workers]),
         )
 
+logged_count = 0
 
 class FinetuneDatasetWithTemplate(torch.utils.data.dataset.Dataset):
     def __init__(self, dataset, templates: List[Template], tokenizer, add_special_tokens=True):
@@ -141,8 +142,12 @@ class FinetuneDatasetWithTemplate(torch.utils.data.dataset.Dataset):
         return len(self.dataset)
 
     def __getitem__(self, key):
+        global logged_count
         if isinstance(self.templates, list):
             template: Template = np.random.choice(self.templates)
+            if logged_count < 100:
+                logged_count += 1
+                print(f"Using template {template.name}")
         else:
             template = self.templates
         example = self.dataset[key]
