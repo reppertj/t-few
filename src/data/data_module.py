@@ -1,10 +1,72 @@
+from typing import List
 import torch
 import numpy as np
 from pytorch_lightning import LightningDataModule
+from promptsource.templates import Template
+from torch.utils.data import WeightedRandomSampler
+
+from torch.utils.data import Dataset, Sampler, DistributedSampler
+from typing import Union, Iterable, Sized, Optional, List, Any, Iterator
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
+
+from src.utils.Config import Config
+
+
+class _DatasetSamplerWrapper(Dataset):
+    """Dataset to create indexes from `Sampler` or `Iterable`"""
+
+    def __init__(self, sampler: Union[Sampler, Iterable]) -> None:
+        if not isinstance(sampler, Sized):
+            raise MisconfigurationException(
+                "You seem to have configured a sampler in your DataLoader which"
+                " does not provide `__len__` method. The sampler was about to be"
+                " replaced by `DistributedSamplerWrapper` since `replace_sampler_ddp`"
+                " is True and you are using distributed training. Either provide `__len__`"
+                " method in your sampler, remove it from DataLoader or set `replace_sampler_ddp=False`"
+                " if you want to handle distributed sampling yourself."
+            )
+        if len(sampler) == float("inf"):
+            raise MisconfigurationException(
+                "You seem to have configured a sampler in your DataLoader which"
+                " does not provide finite `__len__` method. The sampler was about to be"
+                " replaced by `DistributedSamplerWrapper` since `replace_sampler_ddp`"
+                " is True and you are using distributed training. Either provide `__len__`"
+                " method in your sampler which returns a finite number, remove it from DataLoader"
+                " or set `replace_sampler_ddp=False` if you want to handle distributed sampling yourself."
+            )
+        self._sampler = sampler
+        # defer materializing an iterator until it is necessary
+        self._sampler_list: Optional[List[Any]] = None
+
+    def __getitem__(self, index: int) -> Any:
+        if self._sampler_list is None:
+            self._sampler_list = list(self._sampler)
+        return self._sampler_list[index]
+
+    def __len__(self) -> int:
+        return len(self._sampler)
+
+    def reset(self) -> None:
+        """Reset the sampler list in order to get new sampling."""
+        self._sampler_list = list(self._sampler)
+
+
+class DistributedSamplerWrapper(DistributedSampler):
+    """Wrapper over ``Sampler`` for distributed training.
+    Allows you to use any sampler in distributed mode. It will be automatically used by PyTorch Lightning in distributed
+    mode if `replace_sampler_ddp=True`
+    """
+
+    def __init__(self, sampler: Union[Sampler, Iterable], *args: Any, **kwargs: Any) -> None:
+        super().__init__(_DatasetSamplerWrapper(sampler), *args, **kwargs)
+
+    def __iter__(self) -> Iterator:
+        self.dataset.reset()
+        return (self.dataset[index] for index in super().__iter__())
 
 
 class FinetuneDataModule(LightningDataModule):
-    def __init__(self, config, tokenizer, dataset_reader):
+    def __init__(self, config: Config, tokenizer, dataset_reader):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
@@ -33,14 +95,27 @@ class FinetuneDataModule(LightningDataModule):
         print(f"Train size {len(self.train_dataset)}")
         print(f"Eval size {len(self.dev_dataset)}")
 
+    def get_balanced_sampler(self, dataset: "FinetuneDatasetWithTemplate"):
+        targets = np.array([dataset[i][3].item() for i in range(len(dataset))])
+        class_sample_count = np.array([len(np.where(targets == t)[0]) for t in np.unique(targets)])
+        weight = 1.0 / class_sample_count
+        samples_weight = np.array([weight[t] for t in targets])
+        samples_weight = torch.from_numpy(samples_weight).float()
+        sampler = WeightedRandomSampler(samples_weight, len(samples_weight))
+        if self.config.compute_strategy in ("ddp",) or self.config.use_deepspeed or "deepspeed" in self.config.compute_strategy:
+            return DistributedSamplerWrapper(sampler)
+        return sampler
+
     def train_dataloader(self):
+        kwargs = dict(sampler=self.get_balanced_sampler(self.train_dataset) if self.config.balanced_sampling else dict())
         return torch.utils.data.DataLoader(
             self.train_dataset,
             batch_size=self.config.batch_size,
-            shuffle=True,
+            shuffle=False if self.config.balanced_sampling else True,
             collate_fn=create_collate_fn(self.tokenizer.pad_token_id, pretrain=False),
             drop_last=True,
             num_workers=min([self.config.batch_size, self.config.num_workers]),
+            **kwargs
         )
 
     def val_dataloader(self):
@@ -52,21 +127,27 @@ class FinetuneDataModule(LightningDataModule):
             num_workers=min([self.config.eval_batch_size, self.config.num_workers]),
         )
 
+logged_count = 0
 
 class FinetuneDatasetWithTemplate(torch.utils.data.dataset.Dataset):
-    def __init__(self, dataset, templates, tokenizer, add_special_tokens=True):
+    def __init__(self, dataset, templates: List[Template], tokenizer, add_special_tokens=True):
         super().__init__()
         self.dataset = dataset
         self.templates = templates
         self.tokenizer = tokenizer
         self.add_special_tokens = add_special_tokens
 
+
     def __len__(self):
         return len(self.dataset)
 
     def __getitem__(self, key):
+        global logged_count
         if isinstance(self.templates, list):
-            template = np.random.choice(self.templates)
+            template: Template = np.random.choice(self.templates)
+            if logged_count < 100:
+                logged_count += 1
+                print(f"Using template {template.name}")
         else:
             template = self.templates
         example = self.dataset[key]
